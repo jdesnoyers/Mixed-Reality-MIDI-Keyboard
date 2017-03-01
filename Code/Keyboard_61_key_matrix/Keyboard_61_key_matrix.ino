@@ -4,14 +4,13 @@
  * 
  * John Desnoyers-Stewart
  * 200218553
- * February 13, 2017
+ * March 1, 2017
  */
 
 /*constants - use of KD, BR and MK correspond to keyboard matrix PCB
  *KD is input (scanned columns) and BR and MK are output (activated rows)
  *Two parallel 8x8 matrices, KDxBR and KDxMK
  */
-
 
 //prototypes
 void scanRowBR(byte);
@@ -25,13 +24,13 @@ byte calculateVelocity(unsigned long keytimeCalc);
 const byte midiChannel = 0;
 
 //scanned columns KD
-const byte matrixKD[8] = {40,38,36,34,32,30,28,26};
+const byte matrixKD[8] = {29,31,33,35,37,39,41,43};
 
 //scanned rows BR - array 0-8 corresponds to board numbers 3-10
-const byte matrixBR[8] = {47,43,39,35,31,27,23,24};
+const byte matrixBR[8] = {22,26,30,34,38,42,46,45};
 
 //scanned rows MK - array 0-8 corresponds to board numbers 3-10;
-const byte matrixMK[8] = {46,45,41,37,33,29,25,22};
+const byte matrixMK[8] = {23,24,28,32,36,40,44,47};
 
 //refresh interval
 const long sendTime = 1000;
