@@ -17,8 +17,10 @@ void scanRowBR(byte);
 void scanRowMK(byte);
 void midiOn(byte,byte);
 void midiOff(byte,byte);
+void midiAftertouch();
 byte calculateVelocity(unsigned long keytimeCalc);
 
+long loopTime = 0;
 
 //midi channel
 const byte midiChannel = 0;
@@ -45,6 +47,9 @@ unsigned long currentMillis;
 //current row number for activating BR 3-10/MK3-10
 byte rownum = 0;
 byte colmax = 8;
+
+//read/write bytes
+byte inputKD = 0;
 
 //Keypress arrays (each bit is treated as a boolean)
 byte keypressBR[8] = {0};
@@ -84,11 +89,12 @@ void setup() {
 
   
   //Activate serial
-  Serial.begin(9600);
+  Serial.begin(38400);
 
 }
 
 void loop() {
+
 
   if(rownum==7)
     colmax = 5;
@@ -97,179 +103,27 @@ void loop() {
   
   scanRowBR(rownum); 
   scanRowMK(rownum);
+
   
   currentTime = micros();
   currentMillis = millis();
 
+
+
   //increment rownum through 0-7 
   if (rownum >= 7)
+  {
     rownum = 0;
-  else
-    rownum ++;
-  
-
-}
-
-/*Scan all of the columns of the specified row to see which keys in the matrix have been pressed
- *the columns correspond to the sequential physical key, 0-7
- *the rows correspond to groups of keys, 0-7
- *row 0, col 0 = C1 on the keyboard, row 0, col 1 = C1#... row 1, col 0 is then G#1 and so on.
- *
- *BR and MK are parallel matrices used to measure velocity. The key pressed will always activate switch BR then MK
- *by measuring the time between activations we can derive a realtive velocity. The reverse is true for off signals.
- *MK is not always activated so an on or off signal with zero velocity is sent after a few moments .
- *
- *The matrix scan operates as follows:
- *all rows are set typically high as the system uses pull up resistor configuration
- *One BR row is set low, all columns are then scanned, if any have activated then a timer for that key is started
- *The corresponding MK row is set low, all columns scanned. If any are activated then the velocity is captured from the difference in activation time
- *Some error is inherent as the activation may occur while other rows are being scanned, but this is imperceptible
- *
- */
-
-void scanRowBR(byte row)
-{
-
-  digitalWrite(matrixBR[row], LOW);   //activate BR
-
-
-  //loop through columns MK0-7
-  for(byte col = 0; col < colmax; col++)
-  {
-    
-    int i=col+row*8; //calculate keyindex
-    
-    if(digitalRead(matrixKD[col]) == LOW)
-    {
-      if ((bitRead(keypressBR[row],col) == 0) && (bitRead(keystate[row],col) == 0))
-      {
-        keytime[i] = micros(); //if key is newly pressed, track time to obtain velocity
-      }
-    }
-    else 
-    {
-      if ((bitRead(keypressBR[row],col) == 1) && (bitRead(keystate[row],col) == 1))
-      {
-        //calculate velocity - may produce errors if MK wasn't triggered
-        keyvelocity[i] = calculateVelocity(keytime[i]);
-
-        bitClear(keystate[row],col); //track note as off
-        midiOff(i,keyvelocity[i]);  //send midi off
-          
-      }
-    }
-      
-    bitWrite(keypressBR[row],col,!digitalRead(matrixKD[col])); //set keypress latch equal to inverse of current key state)
+    loopTime = micros()-loopTime;
+    Serial.println(loopTime);
+    loopTime = micros();
+    //midiAftertouch();
     
   }
-
-  digitalWrite(matrixBR[row], HIGH);   //deactivate BR
-}
-
-void scanRowMK(byte row)
-{
-  digitalWrite(matrixMK[row], LOW);   //activate MK
-  
-  //loop through columns MK0-7
-  for(byte col = 0;col < colmax; col++)
-  {
-    
-    int i= col+row*8; //calculate key index
-    
-    if (digitalRead(matrixKD[col]) == LOW)
-    {
-      if((bitRead(keypressMK[row],col) == 0) && (bitRead(keystate[row],col) == 0))
-      {
-     
-        keyvelocity[i]= calculateVelocity(keytime[i]);      //calculate velocity, set time to zero, send midi signal
-        
-        //keytime[i] = 0;      //set time to zero
-        bitSet(keystate[row],col); //track note as on
-        midiOn(i,keyvelocity[i]); //send midi on
-        
-      }
-    }
-    else 
-    {
-      if((bitRead(keypressMK[row],col) == 1) && (bitRead(keystate[row],col) == 1))
-      {
-        //keytime[i] = micros();      //if key is newly released, track time to obtain velocity
-      }
-      else
-      {
-        if((bitRead(keypressBR[row],col) == 1) && (bitRead(keystate[row],col) == 0)&& (micros()-keytime[i] > velocityMax))
-        {
-          bitSet(keystate[row],col);  //track note as on
-          midiOn(i,0);  //send midi on
-        }
-      }
-
-    }
-    
-    bitWrite(keypressMK[row],col,!digitalRead(matrixKD[col]));
-        
-  }
-
-  digitalWrite(matrixMK[row], HIGH); //turn off MK
-}
-
-/*Send 3-byte midi off signal 
- * 1000nnnn 0kkkkkkk 0vvvvvvv
- * 128-143  0-127    0-127
- */
-void midiOff(byte key,byte vel)
-{
-
-  if (key + octShift > 127)
-    return; //return if key is out of range
-  else if (key <=1)
-    vel = 0; //keys 0,1 are defective, set velocity to zero
-  
-  Serial.print(128+midiChannel);
-  Serial.print(" ");
-  Serial.print(key+octShift); //align octave shift
-  Serial.print(" ");
-  Serial.println(vel);
-}
-
-/*Send 3-byte midi on signal 
- * 1000nnnn 0kkkkkkk 0vvvvvvv
- * 144-159  0-127    0-127
- */
-void midiOn(byte key,byte vel)
-{
- 
-  if (key + octShift > 127)
-    return; //return if key is out of range
-  else if (key <=1)
-    vel = 0; //keys 0,1 are defective, set velocity to zero
-    
-  Serial.print(144+midiChannel); //inlcude channel
-  Serial.print(" ");
-  Serial.print(key+octShift); //align octave shift
-  Serial.print(" ");
-  Serial.println(vel);
-}
-
-//Calculate velocity and check that it is within bounds
-byte calculateVelocity(unsigned long keytimeCalc)
-{
-  //check if micros has rolled over, if so use alternate calcutaion, if not, 
-  if(micros() < keytimeCalc)
-    keytimeCalc = 4294967295 - keytimeCalc + micros(); //accounts for rollover
   else
-    keytimeCalc = micros()-keytimeCalc; //typical calculation
-    
-  //velocity going over 127!!!  
-  byte velCalc = ((velocityMax-(keytimeCalc-velocityMin))*127)/(velocityMax-velocityMin); //calculate velocity
+    rownum ++;  
 
-  //ensure velocity is within bounds
-  if (velCalc == 0)
-    return 0;
-  else if (velCalc > 127)
-    return 127;
-  else
-    return velCalc;  
-      
 }
+
+
 
