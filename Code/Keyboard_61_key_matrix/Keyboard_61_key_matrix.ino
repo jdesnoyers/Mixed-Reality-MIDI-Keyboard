@@ -114,9 +114,9 @@ void loop() {
   if (rownum >= 7)
   {
     rownum = 0;
-    loopTime = micros()-loopTime;
+    /*loopTime = micros()-loopTime;
     Serial.println(loopTime);
-    loopTime = micros();
+    loopTime = micros();*/
     //midiAftertouch();
     
   }
