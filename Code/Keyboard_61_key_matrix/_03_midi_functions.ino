@@ -41,17 +41,30 @@ void midiAftertouch()
 void midiPitchBend()
 {
 
-  uint16_t pitchRead = map(analogRead(PITCHBEND_PIN),0,1023,0,16383); //read current pitch bend and map to 14 bit MIDI data integer;
+  uint16_t pitchRead = map(analogRead(PITCHBEND_PIN),100,550,0,16383); //read current pitch bend and map to 14 bit MIDI data integer;
 
   if (pitchBend != pitchRead)
   {
-    pitchBend = pitchRead;
-
-    byte pitchLSB = pitchRead & B01111111;        //capture 7 least significant bits
-    byte pitchMSB = (pitchRead >> 7) & B01111111; // capture 7 most significant bits
-
-    sendMidiData(B11100000,pitchLSB,pitchMSB);
-
+    if (pitchRead > 16383)
+    {
+      pitchBend = 8192;
+      if (pitchLatch ==0)
+      {
+        pitchLatch = 1;
+        byte pitchLSB = pitchBend & B01111111;        //capture 7 least significant bits
+        byte pitchMSB = (pitchBend >> 7) & B01111111; // capture 7 most significant bits
+        sendMidiData(B11100000,pitchLSB,pitchMSB); 
+      }
+    }
+    else
+    {
+      pitchBend = pitchRead;
+      byte pitchLSB = pitchBend & B01111111;        //capture 7 least significant bits
+      byte pitchMSB = (pitchBend >> 7) & B01111111; // capture 7 most significant bits
+    
+      sendMidiData(B11100000,pitchLSB,pitchMSB);
+      pitchLatch = 0;
+    }
   }
 
 }
@@ -60,34 +73,57 @@ void midiAbstractionLayer()
 {
 
   
-  abstractionRead[smindex] = analogRead(ABSTRACTION_POT_PIN);
-
-  if (smindex>smmax)
+  smoothAnalogReadMIDI(abstractionRead, absSmIndex, abstractionSmooth, SMOOTHING_ARRAY_SIZE, ABSTRACTION_POT_PIN);
+  
+  if (abstractionLayer != abstractionSmooth)    //if the value has changed
   {
-    uint16_t sum = 0;
     
-    for (byte i = 0; i<smmax; i++)
+    abstractionLayer = abstractionSmooth;               //set current abstraction value to the inputted value
+    
+    analogWrite(ABSTRACTION_LED_PIN,abstractionLayer);  //change slider LED PWM value;
+    
+    sendMidiData(B10110000,20,abstractionLayer);        //send the command
+    
+  }
+  
+}
+
+void midiCutoffFrequency()
+{
+
+  smoothAnalogReadMIDI(cutoffRead, cutSmIndex, cutoffSmooth, SMOOTHING_ARRAY_SIZE, CUTOFF_POT_PIN);
+  
+  if (cutoffFrequency != cutoffSmooth)    //if the value has changed
+  {
+    
+    cutoffFrequency = cutoffSmooth;               //set current abstraction value to the inputted value
+        
+    sendMidiData(B10110000,74,cutoffFrequency);        //send the command
+    
+  }
+  
+}
+
+//smooth analog inputs mapped to midi values
+void smoothAnalogReadMIDI(uint16_t readarray[], byte& index, byte& smoothedvalue, byte factor, byte pin)
+{
+  readarray[index] = analogRead(pin);  //read current analog value
+
+  if (index >=factor)   //if index has incremented through the array
+  {
+    uint16_t sum = 0;     //declare summing variable
+    
+    for (byte i = 0; i<factor; i++)     //sum the array
     {
-      sum += abstractionRead[i] ;
+      sum += readarray[i];
     }
-    abstractionSmooth = map(sum/smmax,0,1023,0,127);
+    smoothedvalue = map(sum/factor,0,1023,0,127); //map values to MIDI byte
     
-    smindex = 0;
+    index = 0;
   }
   else
-    smindex++;
-  
-  if (abstractionLayer != abstractionSmooth)
-  {
-    
-    abstractionLayer = abstractionSmooth;
-    
-    analogWrite(ABSTRACTION_LED_PIN,abstractionLayer); //change slider LED PWM value;
-    
-    sendMidiData(B10110000,20,abstractionLayer);
-    
-  }
-  
+    index++;  //otherwise increment
+
 }
 
 /* Capacitive array using the Adafruit MPR121 Breakout
@@ -101,19 +137,46 @@ void midiCapArray()
   capread = capArray.touched(); //capture current capacitive sensor values
 
   
-  //for now just sending on off signals on unused MIDI channels 102-113)
+  //for now just sending on off signals on unused MIDI channels 102-113
+
   for(byte i = 0; i< 12; i++)
   {
-    if(((capread & ~capkeystate) >> i) & 1)
+    if(i==0 || i>3) //for channels 0 & 4-11, send direct touch on/off signal
     {
-      sendMidiData(B10110000,102+i,127);
+      if(((capread & ~capkeystate) >> i) & 1)
+      {
+        sendMidiData(B10110000,102+i,127);
+      }
+      else if(((~capread & capkeystate) >> i) & 1)
+      {
+        sendMidiData(B10110000,102+i,0);
+      }
     }
-    else if(((~capread & capkeystate) >> i) & 1)
+    else //for other channels (1-3) send toggle signal (first touch = on, second = off)
     {
-      sendMidiData(B10110000,102+i,0);
+      if(((capread & ~capkeystate & ~capkeytoggle) >> i) & 1)
+      {
+        capkeytoggle |= (1 << i);
+        sendMidiData(B10110000,102+i,127);
+        if(i==1)  //toggle IR LEDS on pad 1 press
+        {
+          digitalWrite(IR_LED_PIN_A,1);
+          digitalWrite(IR_LED_PIN_B,1);
+        }
+      }
+      else if(((capread & ~capkeystate & capkeytoggle) >> i) & 1)
+      {
+        capkeytoggle &= ~(1<<i);
+        sendMidiData(B10110000,102+i,0);
+        if(i==1)  //toggle IR LEDS on pad 1 press
+        {
+          digitalWrite(IR_LED_PIN_A,0);
+          digitalWrite(IR_LED_PIN_B,0);
+        }
+      }
     }
   }
-
+  
   capkeystate = capread; //store current key states
   
 }
@@ -121,12 +184,17 @@ void midiCapArray()
 //Send MIDI data - two data bytes
 void sendMidiData(byte midiStatus,byte midiDataA,byte midiDataB)
 {
-    //send over USB
+
     Serial.print(midiStatus+midiChannel); //include channel
     Serial.print(" ");
     Serial.print(midiDataA);
     Serial.print(" ");
     Serial.println(midiDataB);
+
+    //send over USB
+    /*Serial.write(midiStatus+midiChannel); //include channel
+    Serial.write(midiDataA);
+    Serial.write(midiDataB);*/
 
     //send over MIDI
     Serial1.write(midiStatus+midiChannel); //include channel
@@ -137,10 +205,13 @@ void sendMidiData(byte midiStatus,byte midiDataA,byte midiDataB)
 //Send MIDI data - one data bytes
 void sendMidiData(byte midiStatus,byte midiDataA)
 {
-    //send over USB
     Serial.print(midiStatus+midiChannel); //include channel
     Serial.print(" ");
     Serial.println(midiDataA);
+    
+    //send over USB
+    //Serial.write(midiStatus+midiChannel); //include channel
+    //Serial.write(midiDataA);
 
     //send over MIDI
     Serial1.write(midiStatus+midiChannel); //include channel

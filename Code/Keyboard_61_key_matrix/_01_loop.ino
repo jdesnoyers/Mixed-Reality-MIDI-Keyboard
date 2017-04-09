@@ -8,8 +8,10 @@ void loop() {
     midiAftertouch();
     //speedCheck();
     midiAbstractionLayer();
+    midiCutoffFrequency();
     midiCapArray();
-    //midiPitchBend();
+    midiPitchBend();
+    colorizeEnds();
     FastLED.show(); //activate current LEDs
   }
   else
