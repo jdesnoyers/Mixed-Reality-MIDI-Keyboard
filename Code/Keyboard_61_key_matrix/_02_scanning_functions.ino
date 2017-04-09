@@ -134,7 +134,7 @@ byte calculateVelocity(unsigned long keytimeCalc)
 
 
   if (!velCurveMode)
-    velCalc = map(keytimeCalc,deltaTmax,deltaTmin,0,127); //linear velocity
+    velCalc = map(keytimeCalc,DELTA_T_MAX,DELTA_T_MIN,0,127); //linear velocity
   else
     velCalc = pow(2.71828,(float) (124100-keytimeCalc)/25000)-3; //approximate exponential velocity
 

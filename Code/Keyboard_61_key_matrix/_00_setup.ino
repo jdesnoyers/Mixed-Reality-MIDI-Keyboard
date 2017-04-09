@@ -31,9 +31,11 @@ void setup() {
   FastLED.clear();  
   FastLED.show();        //Initialize pixels off
   
-  fill_rainbow(ledHSV,NUM_LEDS,0,4);
+  fill_rainbow(&ledHSV[START_KEYLEDS],NUM_KEYLEDS,0,5);
 
+  //TCCR1B = TCCR1B & B11111000 | 0x01; //INTERFERES WITH ANALOG READ - increase PWM frequency for pins 11 & 12 to 31250
 
-  TCCR1B = TCCR1B & B11111000 | 0x01; //increase PWM frequency for pins 11 & 12 to 31250
+  pinMode(IR_LED_PIN_A,OUTPUT);
+  pinMode(IR_LED_PIN_B,OUTPUT);
   
 }
