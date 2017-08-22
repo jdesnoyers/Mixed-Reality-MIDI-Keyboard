@@ -1,18 +1,51 @@
-# Virtual Reality MIDI interface
+# Mixed Reality MIDI Keyboard
 
-An arduino based interactive perhiperal that allows for a augmented virtual reality experience using MIDI communication and hand tracking.
-The user is able to interact via a customized prototyping MIDI keyboard, HTC Vive, and Leap Motion Controller.
+This Mixed Reality MIDI Keyboard is an open source system for integrating a MIDI Keyboard into a virtual environment. It includes the design and programming of both the physical keyboard, and the virtual reality environment through which it is interacted with. The system uses a number of devices including the HTC Vive, Vive Tracker, and Leap Motion to locate the user's hands and keyboard.
+
+The keyboard is built from a salvaged keybed, Arduino Mega 2560, and a number of other analog and digital transducers. It communicates using the MIDI protocol, over either MIDI or USB cables allowing it to interface with other stanardized MIDI instruments and digital audio workstations.
+
+## Folders
+
+### Arduino
+Program for implementation of physical hardware using Arduino Mega 2560.
+
+### Design Files
+3D CAD files, drawings, electrical routing required to build the Keyboard frame and assemble components.
+
+### Unity
+Contains required files for Unity project - requires a number of plugins and programs to function properly as listed below:
+
+#### Required Unity Plugins
+ - NVIDIA VRWorks
+ - TextMesh Pro
+ - Leap Motion SDK, hand module and interaction engine module
+ 
+#### Required Programs
+ - Unity 2017.1
+ - Leap Motion Orion
+ - LoopMIDI
+ - Hairless MIDIserial
+ - Any DAW (Digital Audio Workstation) such as Bitwig Studio or Ableton Live
+
+
+## Setup
+
+## Operation
+
 
 ---
 
 ## Updates
 
-### 27/Mar/2017
-**_Major Update_**
+### 10/Aug/2017 - Version 2 - Audio Mostly
+This update aligns the software with Version 2 of the physical keyboard. The keyboard has been improved with:
+ - matte black interaction surfaces
+ - angled upper deck
+ - Additional potentiometer and rotary encoder
+ - tactile buttons
+ - Infrared LEDs with improved, more precise localization capablity
 
-#### Current Status:
- - MIDI/Arduino portion mostly complete. From here on this platform will remain as a flexible test bed for various inputs in VR.
-
+### 27/Mar/2017 - Version 1
 
 #### Changes:
  - Changed to external pull-down resistor configuration in order to simultaneously scan both MK and BR matrices
